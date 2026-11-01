@@ -2,3 +2,5 @@
 .venv/
 *.csv
 __pycache__/
+categories_cache.json
+categorized.csv
