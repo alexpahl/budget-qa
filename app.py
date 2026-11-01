@@ -18,6 +18,7 @@ from categorize import (
     load_transactions,
     save_cache,
 )
+from qa import answer_question
 
 st.set_page_config(page_title="Budget Q&A", page_icon="💰", layout="wide")
 st.title("Budget Q&A")
@@ -87,6 +88,47 @@ c1.metric("Money in", f"${money_in:,.2f}")
 c2.metric("Money out", f"${money_out:,.2f}")
 c3.metric("Net", f"${money_in - money_out:,.2f}")
 c4.metric("Transactions", f"{len(view):,}")
+
+# ---------------------------------------------------------------------------
+# Ask your budget
+# ---------------------------------------------------------------------------
+st.subheader("Ask your budget")
+st.caption(
+    "Claude turns your question into a query and pandas does the math. "
+    "Questions search all loaded transactions, regardless of the date filter. "
+    "Your question and the computed result are sent to Claude; raw rows are not."
+)
+
+if "qa_history" not in st.session_state:
+    st.session_state["qa_history"] = []
+
+with st.form("qa_form", clear_on_submit=True):
+    question = st.text_input(
+        "Question", placeholder="How much did I spend on dining in September?"
+    )
+    asked = st.form_submit_button("Ask")
+
+if asked and question.strip():
+    with st.spinner("Thinking..."):
+        try:
+            outcome = answer_question(df, question.strip())
+        except Exception as e:
+            outcome = {
+                "answer": f"Something went wrong: {e}",
+                "plan": None,
+                "result": None,
+            }
+    st.session_state["qa_history"].insert(0, {"question": question.strip(), **outcome})
+
+for item in st.session_state["qa_history"][:5]:
+    with st.chat_message("user"):
+        st.write(item["question"])
+    with st.chat_message("assistant"):
+        # Escape $ so Streamlit doesn't treat "$10 and $20" as a math formula
+        st.markdown(item["answer"].replace("$", r"\$"))
+        if item.get("plan"):
+            with st.expander("How this was calculated"):
+                st.json({"query": item["plan"], "result": item["result"]})
 
 # ---------------------------------------------------------------------------
 # Charts (spending only)
